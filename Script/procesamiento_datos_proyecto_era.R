@@ -94,7 +94,6 @@ rm(url3, tmp3)
 
 names(DSIS)[names(DSIS) == "NÚMERO DOCUMENTO"] <- "RUC"
 names(DSIS)[names(DSIS) == "NÚMERO"] <- "TELEFONO"
-DSIS <- DSIS %>% mutate(TELEFONO = as.character(TELEFONO))
 
 DSIS <- DSIS %>%
   select(RUC, CORREO_1, CORREO_2, TELEFONO, Direccion) %>%
