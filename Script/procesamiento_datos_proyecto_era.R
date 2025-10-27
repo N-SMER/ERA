@@ -148,6 +148,13 @@ datos <- datos %>%
   distinct(RUC, .keep_all = TRUE) %>%   # Nos quedamos con la mejor fila por RUC
   select(-prioridad) 
 
+datos <- datos %>%
+  mutate(
+    # Extrae solo los números celulares (9 dígitos que empiezan con 9)
+    TELEFONO = str_extract(TELEFONO, "(?<!\\d)9\\d{8}(?!\\d)")
+  )
+
+
 unique(datos$RUC[duplicated(datos$RUC)])
 
 # Del archivo de REPORTE_ADM_UF_COMPET_ACTIVIDADES_X_SUBSECTOR.xlsx 
@@ -173,6 +180,8 @@ ERA <- ERA %>% mutate(USO_ERA = "SI")
 uni_adm <- uni_adm %>% left_join(datos,by = "RUC")
 
 uni_adm <- uni_adm %>% left_join(ERA, by = "RUC")
+
+names(uni_adm)[names(uni_adm) == "TELEFONO"] <- "NRO. CELULAR"
 
 glimpse(uni_adm)
 
