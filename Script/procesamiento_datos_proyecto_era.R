@@ -2,7 +2,7 @@
 rm(list = ls())
 gc()
 getwd()
-setwd("C:/Users/USUARIO/Downloads/Proyecto ERA Emergencias/Data procesada")
+setwd("C:/Users/USUARIO/Downloads/ERA/Data")
 
 # install.packages(pacman)
 require(pacman)
@@ -10,126 +10,176 @@ p_load(foreign, tidyverse, rio, here, dplyr, viridis, readxl, stringr, RColorBre
        flextable, officer, classInt, foreign, stargazer, sf, mapview, leaflet, writexl, lmtest,
        tseries, car, haven, officer, xlsx, openxlsx, httr)
 
-
-
 ################################################################################
 ### PARTE 1: Construcción de la base de datos de IC del segundo proceso de muestreo
 ################################################################################
 
-
 # 1. Leer archivo remoto desde GitHub
 
 # --- Archivo 1: REPORTE_ADM_UF_COMPET_ACTIVIDADES_X_SUBSECTOR.xlsx
-url1 <- "https://github.com/N-SMER/Proyecto-ERA-Emergencias/raw/refs/heads/main/Rawdata/REPORTE_ADM_UF_COMPET_ACTIVIDADES_X_SUBSECTOR.xlsx"
+url1 <- "https://github.com/N-SMER/ERA/raw/refs/heads/main/Rawdata/REPORTE_ADM_UF_COMPET_ACTIVIDADES_X_SUBSECTOR.xlsx"
 tmp1 <- tempfile(fileext = ".xlsx")
 GET(url1, write_disk(tmp1, overwrite = TRUE))
 
-# --- Archivo 2: Administrados_DS.xlsx
-url2 <- "https://github.com/N-SMER/Proyecto-ERA-Emergencias/raw/refs/heads/main/Rawdata/Administrados_DS.xlsx"
+# --- Archivo 5: ERA
+url5 <- "https://github.com/N-SMER/ERA/raw/refs/heads/main/Rawdata/export14102025.xlsx"
+tmp5 <- tempfile(fileext = ".xlsx")
+GET(url5, write_disk(tmp5, overwrite = TRUE))
+
+# --- Archivo 2: DSAP
+url2 <- "https://github.com/N-SMER/ERA/raw/refs/heads/main/Rawdata/Directorio%20DSAP%202025_Actualizado.Enero2025.xlsx"
 tmp2 <- tempfile(fileext = ".xlsx")
 GET(url2, write_disk(tmp2, overwrite = TRUE))
 
-# --- Archivo 3: Administrados_DS.xlsx
-url3 <- "https://github.com/N-SMER/Proyecto-ERA-Emergencias/raw/refs/heads/main/Rawdata/export14102025.xlsx"
+# --- Archivo 3: DSIS
+url3 <- "https://github.com/N-SMER/ERA/raw/refs/heads/main/Rawdata/administrados%20DSIS%2029.1.2025.xlsx"
 tmp3 <- tempfile(fileext = ".xlsx")
 GET(url3, write_disk(tmp3, overwrite = TRUE))
 
+# --- Archivo 4: DEAM
+url4 <- "https://github.com/N-SMER/ERA/raw/refs/heads/main/Rawdata/Reporte-Administrados%2030-01-2025.xlsx"
+tmp4 <- tempfile(fileext = ".xlsx")
+GET(url4, write_disk(tmp4, overwrite = TRUE))
+
 # 2. Leer hojas específicas de cada archivo
+
+# Del archivo de DSAP
+CAGR <- read_excel(tmp2, sheet = "CAGR")
+CAGR <- CAGR %>% distinct() %>% mutate(Direccion = "DSAP-CAGR")
+
+CIND <- read_excel(tmp2, sheet = "CIND")
+CIND <- CIND %>% distinct() %>% mutate(Direccion = "DSAP-CIND")
+
+CPES <- read_excel(tmp2, sheet = "CPES")
+CPES <- CPES %>% distinct() %>% mutate(Direccion = "DSAP-CPES")
+
+rm(url2, tmp2)
+
+DSAP <- rbind(CAGR, CIND, CPES)
+rm (CAGR, CIND , CPES)
+
+names(DSAP)[names(DSAP) == "RUC/DNI"] <- "RUC"
+names(DSAP)[names(DSAP) == "CORREO ELECTRONICO"] <- "CORREO_1"
+
+
+DSAP <- DSAP %>%
+  select(RUC, `DOMICILIO DEL ADMINISTRADO`, `NOMBRE DEL CONTACTO`, CORREO_1, TELEFONO, Direccion) %>%
+  filter(
+    !is.na(`CORREO_1`),
+    !is.na(TELEFONO)
+  ) %>%
+  distinct()
+
+DSAP <- DSAP %>%
+  select(RUC, `DOMICILIO DEL ADMINISTRADO`, `NOMBRE DEL CONTACTO`, CORREO_1, TELEFONO, Direccion) %>%
+  mutate(
+    # Creamos una variable de prioridad
+    prioridad = case_when(
+      !is.na(`NOMBRE DEL CONTACTO`) & !is.na(CORREO_1) & !is.na(TELEFONO) ~ 3,
+      is.na(`NOMBRE DEL CONTACTO`) & !is.na(CORREO_1) & !is.na(TELEFONO) ~ 2,
+      TRUE ~ 1
+    )
+  ) %>%
+  arrange(RUC, desc(prioridad)) %>%     # Ordenamos por RUC y prioridad (mayor primero)
+  distinct(RUC, .keep_all = TRUE) %>%   # Nos quedamos con la mejor fila por RUC
+  select(-prioridad) 
+
+unique(DSAP$RUC[duplicated(DSAP$RUC)])
+
+# Del archivo de DSIS
+DSIS <- read_excel(tmp3, sheet = "ADM_DSIS")
+DSIS <- DSIS %>% distinct() %>% mutate(Direccion = "DSIS")
+rm(url3, tmp3)
+
+names(DSIS)[names(DSIS) == "NÚMERO DOCUMENTO"] <- "RUC"
+names(DSIS)[names(DSIS) == "NÚMERO"] <- "TELEFONO"
+
+DSIS <- DSIS %>%
+  select(RUC, CORREO_1, CORREO_2, TELEFONO, Direccion) %>%
+  filter(
+    !is.na(CORREO_1),
+    !is.na(TELEFONO)
+  ) %>%
+  distinct()
+
+unique(DSIS$RUC[duplicated(DSIS$RUC)])
+
+# Del archivo de DEAM
+DEAM <- read_excel(tmp4, sheet = "Sheet1")
+DEAM <- DEAM %>% distinct() %>% mutate(Direccion = "DEAM")
+rm(url4, tmp4)
+
+names(DEAM)[names(DEAM) == "NUMERO_IDENTIFICACION"] <- "RUC"
+names(DEAM)[names(DEAM) == "CORREO ELECTRÓNICO"] <- "CORREO_1"
+names(DEAM)[names(DEAM) == "CORREO ELECTRÓNICO A"] <- "CORREO_2"
+names(DEAM)[names(DEAM) == "NRO. CELULAR"] <- "TELEFONO"
+
+DEAM <- DEAM %>%
+  select(RUC, CORREO_1, CORREO_2, TELEFONO, Direccion) %>%
+  filter(
+    !is.na(CORREO_1),
+    !is.na(TELEFONO)
+  ) %>%
+  distinct()
+
+unique(DEAM$RUC[duplicated(DEAM$RUC)])
+
+# Unimos la data de las tres direcciones
+DSAP <- DSAP %>% mutate(RUC = as.character(RUC))
+DSIS <- DSIS %>% mutate(RUC = as.character(RUC))
+DEAM <- DEAM %>% mutate(RUC = as.character(RUC))
+datos <- bind_rows(DSAP, DSIS, DEAM)
+rm (DSAP, DSIS, DEAM)
+
+datos <- datos %>%
+  select(RUC, `DOMICILIO DEL ADMINISTRADO`, `NOMBRE DEL CONTACTO`, CORREO_1, CORREO_2, TELEFONO, Direccion) %>%
+  mutate(
+    # Creamos una variable de prioridad
+    prioridad = case_when(
+      !is.na(`NOMBRE DEL CONTACTO`) & !is.na(CORREO_1) & !is.na(TELEFONO) ~ 3,
+      is.na(`NOMBRE DEL CONTACTO`) & !is.na(CORREO_1) & !is.na(TELEFONO) ~ 2,
+      TRUE ~ 1
+    )
+  ) %>%
+  arrange(RUC, desc(prioridad)) %>%     # Ordenamos por RUC y prioridad (mayor primero)
+  distinct(RUC, .keep_all = TRUE) %>%   # Nos quedamos con la mejor fila por RUC
+  select(-prioridad) 
+
+unique(datos$RUC[duplicated(datos$RUC)])
 
 # Del archivo de REPORTE_ADM_UF_COMPET_ACTIVIDADES_X_SUBSECTOR.xlsx 
 uni_adm <- read_excel(tmp1, sheet = "Sheet 1")
-
-names(uni_adm)[names(uni_adm) == "ID_ADM"] <- "ID"
 names(uni_adm)[names(uni_adm) == "NUM_DOC"] <- "RUC"
+uni_adm <- uni_adm %>% mutate(RUC = as.character(RUC))
 names(uni_adm)[names(uni_adm) == "ADMINISTRADO"] <- "NOMBRE O RAZÓN SOCIAL"
 
-uni_adm <- uni_adm %>%
-  select(ID, RUC, `NOMBRE O RAZÓN SOCIAL`, SECTOR,SUBSECTOR, COMPETENCIA, ACTIVIDAD)
-
-uni_adm_collap <- uni_adm %>%
-  group_by(RUC) %>%
-  summarise(
-    NOMBRE = first(`NOMBRE O RAZÓN SOCIAL`),
-    SECTOR = first(SECTOR),
-    SUBSECTOR = first(SUBSECTOR),
-    COMPETENCIA = first(COMPETENCIA),
-    ACTIVIDAD = first(ACTIVIDAD)
-  )
-
-rm(tmp1, url1)
-
-# Del archivo de Administrados_DS.xlsx
-datos <- read_excel(tmp2, sheet = "BD")
-
-names(datos)[names(datos) == "R.U.C."] <- "RUC"
-
-datos <- datos %>%
-  select(RUC, CORREO_1 , CORREO_2, NÚMERO,DS )
-
-datos <- datos %>%
-  mutate(RUC = as.character(RUC)) %>%
-  group_by(RUC) %>%
-  summarise(
-    CORREO_1 = paste(unique(na.omit(CORREO_1)), collapse = "; "),
-    CORREO_2 = paste(unique(na.omit(CORREO_2)), collapse = "; "),
-    NÚMERO   = paste(unique(na.omit(NÚMERO)), collapse = "; "),
-    DS       = paste(unique(na.omit(DS)), collapse = "; "),
-    .groups = "drop"
-  )
-
-# Si alguna columna quedó vacía tras el collapse, convertir "" en NA
-datos <- datos %>%
-  mutate(across(c(CORREO_1, CORREO_2, NÚMERO, DS), ~na_if(.x, "")))
-
-rm(tmp2, url2)
+rm(url1, tmp1)
 
 # Del archivo de export14102025.xlsx = ERA EMERGENCIAS
-ERA <- read_excel(tmp3, sheet = "Exportar Hoja de Trabajo")
+ERA <- read_excel(tmp5, sheet = "Exportar Hoja de Trabajo")
+rm(tmp5, url5)
 
 names(ERA)[names(ERA) == "ID_ADM"] <- "ID"
 names(ERA)[names(ERA) == "NUM_DOC"] <- "RUC"
+ERA <- ERA %>% mutate(RUC = as.character(RUC))
 
-ERA <- ERA %>%
-  select(ID, RUC)
-
-ERA <- ERA %>%
-  select(ID, RUC) %>%
-  distinct() %>%
-  mutate(USA_ERA = "SI")
-
-rm(tmp3, url3)
+ERA <- ERA %>% select(RUC)  %>% distinct()
+ERA <- ERA %>% mutate(USO_ERA = "SI")
 
 # 3. UNION 
-uni_adm_collap <- uni_adm_collap %>%
-  mutate(RUC = as.character(RUC))
+uni_adm <- uni_adm %>% left_join(datos,by = "RUC")
 
-datos <- datos %>%
-  mutate(RUC = as.character(RUC))
+uni_adm <- uni_adm %>% left_join(ERA, by = "RUC")
 
-ERA <- ERA %>%
-  mutate(RUC = as.character(RUC))
+glimpse(uni_adm)
 
-uni_adm_collap <- uni_adm_collap %>%
-  left_join(
-    datos %>% select(RUC, CORREO_1, CORREO_2, NÚMERO),
-    by = "RUC"
-  )
-
-uni_adm_collap <- uni_adm_collap %>%
-  left_join(
-    ERA %>% select(RUC, USA_ERA),
-    by = "RUC"
-  )
-
-
-glimpse(uni_adm_collap)
-
-sum(!is.na(uni_adm_collap$CORREO_1) | 
-      !is.na(uni_adm_collap$CORREO_2) |
-      !is.na(uni_adm_collap$NÚMERO))
-
+sum(!is.na(uni_adm$CORREO_1) | 
+      !is.na(uni_adm$CORREO_2) |
+      !is.na(uni_adm$TELEFONO))
 
 n_distinct(uni_adm$RUC)
+n_distinct(uni_adm$CORREO_1)
+n_distinct(uni_adm$TELEFONO)
 n_distinct(datos$RUC)
 
 
@@ -142,7 +192,7 @@ library(writexl)
 
 write_xlsx(
   list(
-    "Informes" = uni_adm_collap
+    "Informes" = uni_adm
    
   ),
   "basefinal.xlsx"
