@@ -44,6 +44,7 @@ GET(url4, write_disk(tmp4, overwrite = TRUE))
 # 2. Leer hojas específicas de cada archivo
 
 # Del archivo de DSAP
+
 CAGR <- read_excel(tmp2, sheet = "CAGR")
 CAGR <- CAGR %>% distinct() %>% mutate(Direccion = "DSAP-CAGR")
 
@@ -93,6 +94,7 @@ rm(url3, tmp3)
 
 names(DSIS)[names(DSIS) == "NÚMERO DOCUMENTO"] <- "RUC"
 names(DSIS)[names(DSIS) == "NÚMERO"] <- "TELEFONO"
+DSIS <- DSIS %>% mutate(TELEFONO = as.character(TELEFONO))
 
 DSIS <- DSIS %>%
   select(RUC, CORREO_1, CORREO_2, TELEFONO, Direccion) %>%
@@ -113,6 +115,7 @@ names(DEAM)[names(DEAM) == "NUMERO_IDENTIFICACION"] <- "RUC"
 names(DEAM)[names(DEAM) == "CORREO ELECTRÓNICO"] <- "CORREO_1"
 names(DEAM)[names(DEAM) == "CORREO ELECTRÓNICO A"] <- "CORREO_2"
 names(DEAM)[names(DEAM) == "NRO. CELULAR"] <- "TELEFONO"
+DEAM <- DEAM %>% mutate(TELEFONO = as.character(TELEFONO))
 
 DEAM <- DEAM %>%
   select(RUC, CORREO_1, CORREO_2, TELEFONO, Direccion) %>%
@@ -128,6 +131,7 @@ unique(DEAM$RUC[duplicated(DEAM$RUC)])
 DSAP <- DSAP %>% mutate(RUC = as.character(RUC))
 DSIS <- DSIS %>% mutate(RUC = as.character(RUC))
 DEAM <- DEAM %>% mutate(RUC = as.character(RUC))
+
 datos <- bind_rows(DSAP, DSIS, DEAM)
 rm (DSAP, DSIS, DEAM)
 
